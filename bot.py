@@ -54,12 +54,10 @@ def ukey(uid: int) -> str:
 # ----------------- Файлы -----------------
 def get_task_images(task_num: int):
     folder = TASKS_DIR / str(task_num)
-    if not folder.exists():
+    if not folder.exists() or not folder.is_dir():
         return []
     return sorted(
-        list(folder.glob("*.png")) +
-        list(folder.glob("*.jpg")) +
-        list(folder.glob("*.jpeg"))
+        [f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in (".png", ".jpg", ".jpeg")]
     )
 
 def get_answers(task_num: int):
@@ -156,9 +154,14 @@ async def send_task(chat_id: int, key: str):
     item = order[index]
     task_num = item.get("task", user["current_task"])
 
+    img_path = Path(item["image"])
+    if not img_path.exists():
+        await bot.send_message(chat_id, "❌ В этом задании нет картинок.")
+        return
+
     await bot.send_photo(
         chat_id,
-        FSInputFile(item["image"]),
+        FSInputFile(img_path),
         caption=f"📘 Задание {task_num}\nВведи ответ:"
     )
 
@@ -242,7 +245,6 @@ async def mini_exam(message: Message):
     key = ukey(message.from_user.id)
     exam_order = []
 
-    # строго 1→12, по одной картинке из каждого задания
     for task_num in range(1, 13):
         images = get_task_images(task_num)
         if not images:
